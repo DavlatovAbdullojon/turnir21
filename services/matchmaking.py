@@ -108,7 +108,11 @@ class MatchmakingService:
 
             winners = await self.db.list_winners_of_round(closed_round)
             if len(winners) <= 1:
-                await self.db.set_state("finished")
+                # Финал завершён. Ставим finished и делаем рассылку итогов один раз.
+                st = await self.db.get_tournament_state()
+                if st.state != "finished":
+                    await self.db.set_state("finished")
+                    await self._broadcast_tournament_finished()
                 log.info("Tournament finished after round %s", closed_round)
                 return
 
@@ -122,3 +126,36 @@ class MatchmakingService:
 
     async def handle_walkover_closed(self, round_no: int) -> None:
         await self._advance_bracket_if_ready(round_no)
+
+    async def _broadcast_tournament_finished(self) -> None:
+        """Рассылка итогов всем пользователям в БД."""
+        from services.stats import compute_podium
+
+        first, second, third = await compute_podium(self.db)
+
+        lines = ["🏁 Турнир завершён!", "", "Поздравляем победителей 🎉", ""]
+
+        if first:
+            lines.append(f"🥇 1 место: {first.name}")
+        if second:
+            lines.append(f"🥈 2 место: {second.name}")
+
+        if third:
+            if len(third) == 1:
+                lines.append(f"🥉 3 место: {third[0].name}")
+            else:
+                lines.append("🥉 3 место (совместное): " + ", ".join([p.name for p in third]))
+        else:
+            lines.append("🥉 3 место: —")
+
+        lines.append("")
+        lines.append("Спасибо всем за участие! 🏓")
+        text = "\n".join(lines)
+
+        tg_ids = await self.db.list_all_player_tg_ids()
+        for tg_id in tg_ids:
+            try:
+                await self.bot.send_message(tg_id, text)
+            except Exception:
+                # Пользователь мог заблокировать бота / нет диалога — пропускаем
+                log.exception("Failed to send finish message to tg_id=%s", tg_id)

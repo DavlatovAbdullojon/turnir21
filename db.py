@@ -283,6 +283,13 @@ class Database:
             main = int((await cur.fetchone())["c"])
             return {"total": total, "checked_in": checked, "waitlist": wait, "main": main}
 
+    async def list_all_player_tg_ids(self) -> List[int]:
+        """Все tg_id из таблицы players (для рассылок)."""
+        async with self._lock:
+            cur = await self.conn.execute("SELECT tg_id FROM players")
+            rows = await cur.fetchall()
+            return [int(r["tg_id"]) for r in rows]
+
     async def increment_delay(self, player_id: int) -> None:
         async with self._lock:
             await self.conn.execute(
@@ -385,6 +392,56 @@ class Database:
             cur = await self.conn.execute("SELECT * FROM matches WHERE id=?", (match_id,))
             row = await cur.fetchone()
             return dataclass_from_row(Match, row) if row else None
+
+    async def list_matches_of_round(self, round_no: int) -> List[Match]:
+        async with self._lock:
+            cur = await self.conn.execute(
+                "SELECT * FROM matches WHERE round=? ORDER BY id ASC",
+                (round_no,),
+            )
+            rows = await cur.fetchall()
+            return [dataclass_from_row(Match, r) for r in rows]
+
+    async def get_last_closed_match_of_round(self, round_no: int) -> Optional[Match]:
+        async with self._lock:
+            cur = await self.conn.execute(
+                """
+                SELECT * FROM matches
+                WHERE round=? AND status='closed'
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (round_no,),
+            )
+            row = await cur.fetchone()
+            return dataclass_from_row(Match, row) if row else None
+
+    async def list_active_matches_global(self) -> List[Match]:
+        """Матчи, которые сейчас вызваны/идут/ждут подтверждения (для общей статистики)."""
+        async with self._lock:
+            cur = await self.conn.execute(
+                """
+                SELECT * FROM matches
+                WHERE status IN ('called','playing','reported')
+                ORDER BY table_id ASC, round ASC, id ASC
+                """
+            )
+            rows = await cur.fetchall()
+            return [dataclass_from_row(Match, r) for r in rows]
+
+    async def list_closed_matches(self, limit: int = 30) -> List[Match]:
+        async with self._lock:
+            cur = await self.conn.execute(
+                """
+                SELECT * FROM matches
+                WHERE status='closed'
+                ORDER BY round DESC, id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            rows = await cur.fetchall()
+            return [dataclass_from_row(Match, r) for r in rows]
 
     async def list_matches_by_round(self) -> Dict[int, List[Match]]:
         async with self._lock:

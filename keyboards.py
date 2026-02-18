@@ -33,10 +33,11 @@ def main_menu_kb() -> InlineKeyboardMarkup:
     kb.button(text="📝 Регистрация", callback_data=MenuCb(action="register").pack())
     kb.button(text="✅ Я на месте", callback_data=MenuCb(action="checkin").pack())
     kb.button(text="👤 Мой статус", callback_data=MenuCb(action="status").pack())
+    kb.button(text="📈 Статистика", callback_data=MenuCb(action="stats").pack())
     kb.button(text="🏓 Матчи", callback_data=MenuCb(action="matches").pack())
     kb.button(text="🧩 Сетка", callback_data=MenuCb(action="bracket").pack())
     kb.button(text="📜 Правила", callback_data=MenuCb(action="rules").pack())
-    kb.adjust(2, 2, 2)
+    kb.adjust(2, 2, 2, 1)
     return kb.as_markup()
 
 

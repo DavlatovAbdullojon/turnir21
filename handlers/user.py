@@ -9,6 +9,7 @@ from aiogram.types import CallbackQuery, Message
 from db import Database
 from keyboards import ConfirmCb, MatchCb, MenuCb, ReportCb, confirm_kb, main_menu_kb, report_kb
 from services.bracket import render_bracket_text
+from services.stats import render_stats_text
 from services.matchmaking import MatchmakingService
 
 log = logging.getLogger("user")
@@ -40,6 +41,12 @@ RULES_TEXT = (
 @user_router.message(Command("start"))
 async def cmd_start(message: Message) -> None:
     await message.answer("🏓 Меню турнира:", reply_markup=main_menu_kb())
+
+
+@user_router.message(Command("stats"))
+async def cmd_stats(message: Message, db: Database) -> None:
+    """Текстовая статистика турнира."""
+    await message.answer(await render_stats_text(db))
 
 
 @user_router.callback_query(MenuCb.filter(F.action == "rules"))
@@ -142,6 +149,12 @@ async def cb_status(query: CallbackQuery, db: Database) -> None:
         lines.append(f"Статус матча: {m.status}")
 
     await query.message.answer("\n".join(lines))
+
+
+@user_router.callback_query(MenuCb.filter(F.action == "stats"))
+async def cb_stats(query: CallbackQuery, db: Database) -> None:
+    await query.answer()
+    await query.message.answer(await render_stats_text(db))
 
 
 @user_router.callback_query(MenuCb.filter(F.action == "bracket"))
